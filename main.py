@@ -5,9 +5,6 @@
 # 
 # Das ist ein Python-Skript um Ressourcen-Links in Alma zu überprüfen
 
-# In[10]:
-
-
 import requests
 import xml.etree.ElementTree as ET
 from lxml import etree
@@ -64,8 +61,6 @@ portfolioUrl = ""
 headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
 
 #data = requests.get(portfolioUrl)
-#detPortUrl="https://api-eu.hosted.exlibrisgroup.com/almaws/v1/electronic/e-collections/61238282900005505/e-services/9914388509805505/portfolios/53257016710005505?apikey="+apiKey
-print(portfolioUrl)
 
 root = etree.parse(urllib.request.urlopen(portfolioUrl))
 #Initial xpath to parse the first  records
@@ -75,13 +70,13 @@ resultSet = []
 for record in portfolios:
     resultDet = {}
     portfolioId =record.find(".//id")
-    print(portfolioId.text)
+    #print(portfolioId.text)
     resultDet["portfolioID"] = portfolioId.text
     mmsId = record.find(".//resource_metadata/mms_id")
-    print(mmsId.text)
+    #print(mmsId.text)
     resultDet["MMS_ID"] = mmsId.text
     detPortUrl="https://api-eu.hosted.exlibrisgroup.com/almaws/v1/electronic/e-collections/"+collectionID+"/e-services/"+mmsId.text+"/portfolios/"+portfolioId.text+"?apikey="+apiKey
-    print(detPortUrl)
+    #print(detPortUrl)
     
     linkRoot = etree.parse(urllib.request.urlopen(detPortUrl))
     links = linkRoot.findall(".//linking_details/*")
@@ -91,7 +86,7 @@ for record in portfolios:
         try:
             if (link.text.startswith("jkey=http")):
                 linkUrl = re.sub("jkey=","",link.text)
-                print(linkUrl)
+                #print(linkUrl)
                 linkResultDet["linkUrl"] = linkUrl
                 resultDet["link"] = linkUrl
                 linkCheck = requests.get(linkUrl, headers=headers)
@@ -101,7 +96,7 @@ for record in portfolios:
                     pass
                 else:
                     wayBackUrl = getWaybackUrl(linkUrl)
-                    print(wayBackUrl)
+                    #print(wayBackUrl)
                     linkResultDet["wayBackUrl"] = wayBackUrl
                     resultDet["wayBackUrl"] = wayBackUrl
                 #print(getWaybackUrl(linkUrl))
@@ -113,19 +108,19 @@ for record in portfolios:
     resultSet.append(resultDet)
 
 
-# In[11]:
-
+# Delete existing Outputfile
 os.remove('linkChecker.csv')
 
-columnNames = ["portfolioID", "MMS_ID", "status", "link", "wayBackUrl"]
-with open('linkChecker.csv', 'w',  newline='', encoding='utf-8') as csvfile:
-    writer = csv.DictWriter(csvfile, fieldnames = columnNames)
-    writer.writeheader()
-    writer.writerows(resultSet)
+# Filter ReesultSet for non 200 Status Code entries
+newResultSet = list()
+for entry in resultSet:
+    if entry["status"] != 200:
+        newResultSet.append(entry)
 
-
-# In[ ]:
-
-
-
-
+# write Output-CSV
+if len(newResultSet)>0:
+    columnNames = ["portfolioID", "MMS_ID", "status", "link", "wayBackUrl"]
+    with open('linkChecker.csv', 'w',  newline='', encoding='utf-8') as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames = columnNames)
+        writer.writeheader()
+        writer.writerows(newResultSet)
