@@ -13,7 +13,12 @@ import urllib.request, json
 import re
 import waybackpy
 import csv
+from dotenv import load_dotenv
 import os
+
+# API-Key und Collection-ID wird aus .env File gelesen
+def configure():
+    load_dotenv()
 
 # Kommentar hier kommt Wayback-Machine
 
@@ -52,9 +57,8 @@ def getWaybackUrl(url):
 
 #Define Costum Variables like API-Keys, Collection-IDs etc
 # ---------------------
-apiKey = ""
-collectionID = ""
-portfolioUrl = ""
+configure()
+portfolioUrl = f"https://api-eu.hosted.exlibrisgroup.com/almaws/v1/electronic/e-collections/{os.getenv('collectionID')}/e-services/62238282890005505/portfolios?limit=100&offset=0&apikey={os.getenv('apiKey')}"
 
 # ---------------------
 
@@ -75,7 +79,7 @@ for record in portfolios:
     mmsId = record.find(".//resource_metadata/mms_id")
     #print(mmsId.text)
     resultDet["MMS_ID"] = mmsId.text
-    detPortUrl="https://api-eu.hosted.exlibrisgroup.com/almaws/v1/electronic/e-collections/"+collectionID+"/e-services/"+mmsId.text+"/portfolios/"+portfolioId.text+"?apikey="+apiKey
+    detPortUrl=f"https://api-eu.hosted.exlibrisgroup.com/almaws/v1/electronic/e-collections/{os.getenv('collectionID')}/e-services/{mmsId.text}/portfolios/{portfolioId.text}?apikey={os.getenv('apiKey')}"
     #print(detPortUrl)
     
     linkRoot = etree.parse(urllib.request.urlopen(detPortUrl))
