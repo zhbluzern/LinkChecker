@@ -4,3 +4,4 @@ ZHB_Config.ini
 linkChecker.csv
 test.py
 .env
+runLinkChecker.sh

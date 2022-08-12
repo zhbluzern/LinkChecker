@@ -113,7 +113,11 @@ for record in portfolios:
 
 
 # Delete existing Outputfile
-os.remove('linkChecker.csv')
+try:
+    os.remove('linkChecker.csv')
+except FileNotFoundError:
+    pass
+
 
 # Filter ReesultSet for non 200 Status Code entries
 newResultSet = list()
