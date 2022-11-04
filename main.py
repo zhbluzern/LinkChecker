@@ -62,7 +62,9 @@ portfolioUrl = f"https://api-eu.hosted.exlibrisgroup.com/almaws/v1/electronic/e-
 
 # ---------------------
 
-headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
+#headers = {'User-Agent': 'LinkChecker of ZHB-Luzern mailto:informatik@zhbluzern.ch'}
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.360',
+            'referer':'https://f601722f1b888e75f8efe02bd2f39850.safeframe.googlesyndication.com/'}
 
 #data = requests.get(portfolioUrl)
 
@@ -108,7 +110,8 @@ for record in portfolios:
             continue 
         #linkResult.append(linkResultDet)
         #resultDet["links"] = linkResult
-    
+
+    #print(resultDet) 
     resultSet.append(resultDet)
 
 
@@ -122,7 +125,13 @@ except FileNotFoundError:
 # Filter ReesultSet for non 200 Status Code entries
 newResultSet = list()
 for entry in resultSet:
-    if entry["status"] != 200:
+    try:
+        if entry["status"] != 200:
+            newResultSet.append(entry)
+    except KeyError:
+        #print("kein Link vorhanden?")
+        entry["link"] = "kein Link eingetragen!"
+        entry["status"] = "kein Link eingetragen!"
         newResultSet.append(entry)
 
 # write Output-CSV
