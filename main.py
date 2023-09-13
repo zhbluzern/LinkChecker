@@ -15,6 +15,9 @@ import waybackpy
 import csv
 from dotenv import load_dotenv
 import os
+import pandas as pd
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 
 # API-Key und Collection-ID wird aus .env File gelesen
 def configure():
@@ -62,9 +65,8 @@ portfolioUrl = f"https://api-eu.hosted.exlibrisgroup.com/almaws/v1/electronic/e-
 
 # ---------------------
 
-#headers = {'User-Agent': 'LinkChecker of ZHB-Luzern mailto:informatik@zhbluzern.ch'}
-headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.360',
-            'referer':'https://f601722f1b888e75f8efe02bd2f39850.safeframe.googlesyndication.com/'}
+headers = {'User-Agent': 'LinkChecker of ZHB-Luzern mailto:informatik@zhbluzern.ch'}
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.360', 'referer':'https://f601722f1b888e75f8efe02bd2f39850.safeframe.googlesyndication.com/'}
 
 #data = requests.get(portfolioUrl)
 
@@ -92,7 +94,7 @@ for record in portfolios:
         try:
             if (link.text.startswith("jkey=http")):
                 linkUrl = re.sub("jkey=","",link.text)
-                #print(linkUrl)
+                print(linkUrl)
                 linkResultDet["linkUrl"] = linkUrl
                 resultDet["link"] = linkUrl
                 linkCheck = requests.get(linkUrl, headers=headers)
@@ -117,7 +119,7 @@ for record in portfolios:
 
 # Delete existing Outputfile
 try:
-    os.remove('linkChecker.csv')
+    os.remove('linkChecker.xlsx')
 except FileNotFoundError:
     pass
 
@@ -134,10 +136,7 @@ for entry in resultSet:
         entry["status"] = "kein Link eingetragen!"
         newResultSet.append(entry)
 
-# write Output-CSV
-if len(newResultSet)>0:
-    columnNames = ["portfolioID", "MMS_ID", "status", "link", "wayBackUrl"]
-    with open('linkChecker.csv', 'w',  newline='', encoding='utf-8') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames = columnNames)
-        writer.writeheader()
-        writer.writerows(newResultSet)
+# write Output-XLSX
+df = pd.DataFrame(resultSet) 
+df.to_excel('linkChecker.xlsx') 
+
