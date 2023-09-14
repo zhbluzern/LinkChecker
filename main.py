@@ -6,18 +6,16 @@
 # Das ist ein Python-Skript um Ressourcen-Links in Alma zu überprüfen
 
 import requests
-import xml.etree.ElementTree as ET
+import lxml.etree as ET
 from lxml import etree
 import urllib.parse
-import urllib.request, json
+import urllib.request
 import re
 import waybackpy
-import csv
 from dotenv import load_dotenv
 import os
 import pandas as pd
-import ssl
-ssl._create_default_https_context = ssl._create_unverified_context
+
 
 # API-Key und Collection-ID wird aus .env File gelesen
 def configure():
@@ -61,82 +59,106 @@ def getWaybackUrl(url):
 #Define Costum Variables like API-Keys, Collection-IDs etc
 # ---------------------
 configure()
-portfolioUrl = f"https://api-eu.hosted.exlibrisgroup.com/almaws/v1/electronic/e-collections/{os.getenv('collectionID')}/e-services/62238282890005505/portfolios?limit=100&offset=0&apikey={os.getenv('apiKey')}"
-
 # ---------------------
 
-headers = {'User-Agent': 'LinkChecker of ZHB-Luzern mailto:informatik@zhbluzern.ch'}
+#headers = {'User-Agent': 'LinkChecker of ZHB-Luzern mailto:informatik@zhbluzern.ch'}
 headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.360', 'referer':'https://f601722f1b888e75f8efe02bd2f39850.safeframe.googlesyndication.com/'}
 
 #data = requests.get(portfolioUrl)
 
-root = etree.parse(urllib.request.urlopen(portfolioUrl))
-#Initial xpath to parse the first  records
-portfolios = root.findall(".//portfolio[@link]")
+# Funktion um jeweils 100 Portofolios über die API zu harvesten
+def getPortfolios(offset,os):
+    portfolioUrl = f"https://api-eu.hosted.exlibrisgroup.com/almaws/v1/electronic/e-collections/{os.getenv('collectionID')}/e-services/62238282890005505/portfolios?limit=100&offset={str(offset)}&apikey={os.getenv('apiKey')}"
+    #print(portfolioUrl)
+    root = ET.parse(urllib.request.urlopen(portfolioUrl))
+    #Initial xpath to parse the first  records
+    portfolios = root.findall(".//portfolio[@link]")
+    return portfolios
+
+# Abruf der ersten 100 Portfolios
+offset=0
+portfolios = getPortfolios(offset,os)
 
 resultSet = []
-for record in portfolios:
-    resultDet = {}
-    portfolioId =record.find(".//id")
-    #print(portfolioId.text)
-    resultDet["portfolioID"] = portfolioId.text
-    mmsId = record.find(".//resource_metadata/mms_id")
-    #print(mmsId.text)
-    resultDet["MMS_ID"] = mmsId.text
-    detPortUrl=f"https://api-eu.hosted.exlibrisgroup.com/almaws/v1/electronic/e-collections/{os.getenv('collectionID')}/e-services/{mmsId.text}/portfolios/{portfolioId.text}?apikey={os.getenv('apiKey')}"
-    #print(detPortUrl)
-    
-    linkRoot = etree.parse(urllib.request.urlopen(detPortUrl))
-    links = linkRoot.findall(".//linking_details/*")
-    linkResult = []
-    for link in links:
-        linkResultDet = {}
-        try:
-            if (link.text.startswith("jkey=http")):
-                linkUrl = re.sub("jkey=","",link.text)
-                print(linkUrl)
-                linkResultDet["linkUrl"] = linkUrl
-                resultDet["link"] = linkUrl
-                linkCheck = requests.get(linkUrl, headers=headers)
-                resultDet["status"] = linkCheck.status_code
-                if linkCheck.status_code == 200:
-                    #saveWaybackUrl(linkUrl)
+while portfolios != []: #Schleife zum Abholen weiterer Portfolios solange Respond nicht leer ist
+    for record in portfolios:
+        resultDet = {}
+        portfolioId =record.find(".//id")
+        #print(portfolioId.text)
+        resultDet["portfolioID"] = portfolioId.text
+        mmsId = record.find(".//resource_metadata/mms_id")
+        #print(mmsId.text)
+        resultDet["MMS_ID"] = mmsId.text
+        detPortUrl=f"https://api-eu.hosted.exlibrisgroup.com/almaws/v1/electronic/e-collections/{os.getenv('collectionID')}/e-services/{mmsId.text}/portfolios/{portfolioId.text}?apikey={os.getenv('apiKey')}"
+        #print(detPortUrl)
+        
+        linkRoot = etree.parse(urllib.request.urlopen(detPortUrl))
+        links = linkRoot.xpath(".//linking_details/*[local-name()='url' or local-name()='dynamic_url' or local-name()='static_url' or local-name()='static_url_override' or local-name()='dynamic_url_override'][text()]")
+        for link in links:
+            try:
+                regex = r"^jkey=.*(http.*)"
+                try:
+                    matches = re.finditer(regex, link.text, re.MULTILINE)
+                    for matchNum, match in enumerate(matches, start=1):
+                        print(match.group(1))
+                        resultDet["link"] = match.group(1)
+                except TypeError:
                     pass
-                else:
-                    wayBackUrl = getWaybackUrl(linkUrl)
-                    #print(wayBackUrl)
-                    linkResultDet["wayBackUrl"] = wayBackUrl
-                    resultDet["wayBackUrl"] = wayBackUrl
-                #print(getWaybackUrl(linkUrl))
-        except AttributeError:
-            continue 
-        #linkResult.append(linkResultDet)
-        #resultDet["links"] = linkResult
+            except AttributeError:
+                continue 
 
-    #print(resultDet) 
-    resultSet.append(resultDet)
+        #print(resultDet) 
+        resultSet.append(resultDet)
 
+    # Look up for the next 100 portfolios
+    offset = offset+100
+    portfolios = getPortfolios(offset,os)
+
+# Remove duplicate links
+df = pd.DataFrame(resultSet)
+df = df.drop_duplicates(subset=["MMS_ID","link"])
+
+# Check Request Status of Links and handle Wayback machine
+status = []
+wayBackUrlList = []
+for index, row in df.iterrows():
+    print(row["link"])
+    try:
+        if pd.isna(row["link"]) == True:
+            status.append("kein Link eingetragen")
+            wayBackUrlList.append("")
+        else:
+            linkCheck = requests.get(row["link"], headers=headers)
+            status.append(linkCheck.status_code)
+            if linkCheck.status_code == 200:
+                #saveWaybackUrl(linkUrl)
+                wayBackUrlList.append("")
+                pass
+            else:
+                wayBackUrl = getWaybackUrl(row["link"])
+                #print(wayBackUrl)
+                wayBackUrlList.append(wayBackUrl)
+        #print(getWaybackUrl(linkUrl))
+    except requests.exceptions.SSLError:
+        status.append("SSLError")
+        wayBackUrlList.append("")
+        print(f"{row['link']} cannot checked due to some python ssl errors")
+
+df["status"] = status
+df["wayBackUrl"] = wayBackUrlList
 
 # Delete existing Outputfile
 try:
     os.remove('linkChecker.xlsx')
+    os.remove('linkChecker_full.xlsx')
 except FileNotFoundError:
     pass
 
-
-# Filter ReesultSet for non 200 Status Code entries
-newResultSet = list()
-for entry in resultSet:
-    try:
-        if entry["status"] != 200:
-            newResultSet.append(entry)
-    except KeyError:
-        #print("kein Link vorhanden?")
-        entry["link"] = "kein Link eingetragen!"
-        entry["status"] = "kein Link eingetragen!"
-        newResultSet.append(entry)
-
-# write Output-XLSX
-df = pd.DataFrame(resultSet) 
-df.to_excel('linkChecker.xlsx') 
-
+# filter resultset (no 200 and no 403 forbidden status) write Output-XLSX
+#df = pd.DataFrame(resultSet)
+df.to_excel('linkChecker_full.xlsx')
+df = df.loc[(df['status'] != 200) & (df['status'] != 403) & (df['status'] != 502)  & (df['status'] != "SSLError") & (df['status'] != "504") ]
+if len(df.index)>0:
+    df.to_excel('linkChecker.xlsx') 
+else:
+    print("no outputable results")

@@ -5,3 +5,4 @@ linkChecker.csv
 test.py
 .env
 runLinkChecker.sh
+*.xlsx
