@@ -157,7 +157,7 @@ except FileNotFoundError:
 # filter resultset (no 200 and no 403 forbidden status) write Output-XLSX
 #df = pd.DataFrame(resultSet)
 df.to_excel('linkChecker_full.xlsx')
-df = df.loc[(df['status'] != 200) & (df['status'] != 403) & (df['status'] != 502)  & (df['status'] != "SSLError") & (df['status'] != "504") ]
+df = df.loc[(df['status'] != 200) & (df['status'] != 403) & (df['status'] != 502) & (df['status'] != 504)  & (df['status'] != "SSLError") & (df['status'] != "504") ]
 if len(df.index)>0:
     df.to_excel('linkChecker.xlsx') 
 else:
